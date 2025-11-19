@@ -7,31 +7,28 @@
 
 #define IP_STT   "127.0.0.1"
 #define PORT_STT 8001
-
-#define IP_TRANS   "127.0.0.1"
+#define IP_TRANS "127.0.0.1"
 #define PORT_TRANS 8002
-
 #define IP_TTS   "127.0.0.1"
 #define PORT_TTS 8003
-
 #define BUFFER_SIZE 4096
 
-// Helper: Simple network request
+// Helper: Network request with TUI logging
 int send_request(const char* module, const char* ip, int port, const char* input, char* output) {
-    // 1. Connect
+    TUI_log("Connecting to %s...", module);
+    
     int sock = Network_connect(ip, port);
     if (sock < 0) {
-        fprintf(stderr, "[HUB] Error connecting to %s\n", module);
+        TUI_log("ERROR: Connect failed to %s", module);
         return -1;
     }
     
-    // 2. Send
+    TUI_log("Sending %lu bytes...", strlen(input));
     Network_send(sock, input);
     
-    // 3. Receive
     int len = Network_recv(sock, output, BUFFER_SIZE);
+    TUI_log("Received %d bytes from %s", len, module);
     
-    // 4. Close
     Network_close(sock);
     return len;
 }
@@ -39,20 +36,27 @@ int send_request(const char* module, const char* ip, int port, const char* input
 void process_sentence(char* sentence) {
     if (strlen(sentence) < 2) return;
 
-    char french_text[4096];
+    char french_text[BUFFER_SIZE];
     char tts_ack[128];
 
     TUI_update_ear("Chunk Complete", sentence);
     
-    // Translate
+    // 1. Translate
     TUI_update_brain("Processing...", "");
+    TUI_log(">> Job: Translate Chunk");
+    
     if (send_request("Brain", IP_TRANS, PORT_TRANS, sentence, french_text) > 0) {
         TUI_update_brain("Done", french_text);
+        TUI_log("Translation success.");
         
-        // Speak
+        // 2. Speak
         TUI_update_mouth("Speaking...", french_text);
+        TUI_log(">> Job: TTS Playback");
+        
         send_request("Mouth", IP_TTS, PORT_TTS, french_text, tts_ack);
+        
         TUI_update_mouth("Idle", "");
+        TUI_log("Playback complete.");
     }
 }
 
@@ -62,13 +66,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // 1. Start TUI
     TUI_init();
+    TUI_log("Hub Initialized.");
 
-    char full_transcript[4096];
+    char full_transcript[BUFFER_SIZE];
 
-    // Step 1: Get Full Transcript
-    TUI_update_ear("Listening...", argv[1]);
+    // Step 1: Full Transcription
+    TUI_update_ear("Listening (Whisper)...", argv[1]);
+    TUI_log("Starting Batch Transcription on Board 1...");
+    
     if (send_request("Ear", IP_STT, PORT_STT, argv[1], full_transcript) <= 0) {
         TUI_close();
         printf("Error: Board 1 failed.\n");
@@ -77,8 +83,9 @@ int main(int argc, char* argv[]) {
     
     int total_len = strlen(full_transcript);
     TUI_update_ear("Received", "Processing text...");
+    TUI_log("Transcript received (%d chars)", total_len);
 
-    // Step 2: Chunk & Process
+    // Step 2: Chunking Loop
     char* cursor = full_transcript;
     char* start = cursor;
     
@@ -89,7 +96,6 @@ int main(int argc, char* argv[]) {
             
             process_sentence(start);
 
-            // Update Progress
             float p = (float)(cursor - full_transcript) / total_len;
             TUI_update_progress(p);
             
@@ -103,8 +109,9 @@ int main(int argc, char* argv[]) {
         process_sentence(start);
         TUI_update_progress(1.0f);
     }
-
-    sleep(2); // Wait so you can see the final state
+    
+    TUI_log("All jobs complete.");
+    sleep(3); // Hold display
     TUI_close();
     return 0;
 }
