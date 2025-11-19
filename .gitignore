@@ -11,7 +11,7 @@ models/
 *.onnx.json
 
 # Ignore Audio Files
-*.wav
+# *.wav
 
 # Ignore the manual Piper download (it contains binaries)
 ext/piper/
