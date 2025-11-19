@@ -58,8 +58,8 @@ Because the AI models and TTS binaries are too large for Git, you must download 
 
 1. Clone the Repository:
     ```
-    git clone <your-repo-url>
-    cd <repo-name>
+    git clone https://github.sfu.ca/oya4/ENSC351-Distributed-Translator.git
+    cd ENSC351-Distributed-Translator
     git submodule update --init --recursive
     ```
 
