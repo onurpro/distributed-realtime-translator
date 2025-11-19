@@ -1,30 +1,30 @@
-# ENSC 351: Distributed Real-Time Translator
+# ENSC 351: Distributed Real-Time Translator (Network Hub)
 
-This project implements a distributed Speech-to-Speech translation system designed for embedded BeagleBoard hardware (Beagley-AI). The system captures English audio, transcribes it to text, translates it to French, and synthesizes spoken French audio.
+This project implements a distributed Speech-to-Speech translation system running on embedded BeagleBoard hardware (Beagley-AI). The system captures English audio, transcribes it to text, translates it to French, and synthesizes spoken French audio.
 
-The architecture follows a **Hub-and-Spoke** model where a central orchestrator (Board 4) manages data flow between specialized AI inference nodes.
+The architecture follows a **Hub-and-Spoke** model where a central orchestrator (Board 4) manages data flow between specialized AI inference nodes via **TCP Sockets**.
 
 ## 🏗 Architecture & Milestones
 
-The system is modularized into four independent nodes. Currently, Boards 1, 2, and 3 are fully implemented as standalone modules.
+The system is modularized into four independent nodes. All nodes now operate as network servers/clients.
 
-| Board | Role | Engine | Status |
-| :--- | :--- | :--- | :--- |
-| **Board 1** | **The Ear** (Speech-to-Text) | [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) | ✅ Working (File I/O) |
-| **Board 2** | **The Brain** (Translation) | [Llama.cpp](https://github.com/ggerganov/llama.cpp) (TinyLlama) | ✅ Working (Context-aware) |
-| **Board 3** | **The Mouth** (Text-to-Speech) | [Piper](https://github.com/rhasspy/piper) | ✅ Working (Neural TTS) |
-| **Board 4** | **The Hub** (Network Manager) | Custom Socket Server | 🚧 In Progress |
+| Board | Role | Engine | Port | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Board 1** | **The Ear** (Speech-to-Text) | [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) | `8001` | ✅ TCP Server |
+| **Board 2** | **The Brain** (Translation) | [Llama.cpp](https://github.com/ggerganov/llama.cpp) | `8002` | ✅ TCP Server |
+| **Board 3** | **The Mouth** (Text-to-Speech) | [Piper](https://github.com/rhasspy/piper) | `8003` | ✅ TCP Server |
+| **Board 4** | **The Hub** (Orchestrator) | Custom Logic | N/A | ✅ Client/Manager |
 
 ## 📂 Project Structure
 
 ```text
 .
 ├── app/                    # Application Source Code
-│   ├── src/                # Main logic for each board
+│   ├── src/                # Main server logic (main_stt.c, main_hub.c, etc.)
 │   └── include/            # C++ Managers (STT, Translator, TTS)
 ├── hal/                    # Hardware Abstraction Layer
 │   ├── src/audio_hal.c     # Unified Audio (ALSA recording & playback)
-│   └── src/network.c       # Socket networking (Server/Client)
+│   └── src/network.c       # Socket networking (Server/Client implementation)
 ├── ext/                    # External Libraries (Submodules & Binaries)
 │   ├── whisper.cpp/        # STT Inference Engine
 │   ├── llama.cpp/          # LLM Inference Engine
@@ -83,11 +83,13 @@ This project uses CMake Presets to simplify cross-compilation and board selectio
 
   4. Select the board you want to build:
 
-      ```board1-stt``` (Builds Board 1)
+      ```board1-stt``` (Whisper Server)
 
-      ```board2-trans``` (Builds Board 2)
+      ```board2-trans``` (Translation Server)
 
-      ```board3-tts``` (Builds Board 3)
+      ```board3-tts``` (TTS Server)
+
+      ```board4-hub``` (The Network Hub)
 
   5. Click Build on the bottom bar by the gear.
 
@@ -95,36 +97,48 @@ This project uses CMake Presets to simplify cross-compilation and board selectio
 
 You can build directly from the terminal using the preset names:
 
-    # Build Board 1 (STT)
-    cmake --preset board1-stt
-    cmake --build --preset board1-stt
+    # Build All Components
+    cmake --preset board1-stt && cmake --build --preset board1-stt
+    cmake --preset board2-trans && cmake --build --preset board2-trans
+    cmake --preset board3-tts && cmake --build --preset board3-tts
+    cmake --preset board4-hub && cmake --build --preset board4-hub
 
-    # Build Board 2 (Translator)
-    cmake --preset board2-trans
-    cmake --build --preset board2-trans
+*Executables are output to: ```build/app/boardX_name``` and deployed to ```~/ensc351/public/final/boardX_name``` via NFS.*
 
-*Executables are output to: ```build/app/boardX_name``` and sent to ```~/ensc351/public/final/boardX_name``` for easy NFS sharing with the board.*
+## 💻 Usage: Full System Simulation
 
-## 💻 Usage
+To simulate the distributed system on a single board (Localhost Cluster), you must run 4 separate terminal sessions.
 
-**Running Board 1 (Speech-to-Text)**
+**Terminal 1: Start The Ear (STT)**
 
-Processes a WAV file and outputs English text.
+    ./board1_stt
+    # Output: Server listening on port 8001...
 
-    # Format: 16kHz, 16-bit Mono WAV
-    ./board1_stt samples/jfk.wav
+**Terminal 2: Start The Brain (Translator)**
 
-**Running Board 2 (Translator)**
+    ./board2_trans
+    # Output: Server listening on port 8002...
 
-Translates English input to French using the LLM.
+**Terminal 3: Start The Mouth (TTS)**
 
-    ./board2_trans "Ask not what your country can do for you"
+    ./board3_tts
+    # Output: Server listening on port 8003...
 
-**Running Board 3 (Text-to-Speech)**
+**Terminal 4: Run The Hub** This triggers the pipeline. Pass a WAV file as an argument.
 
-Process french and outputs a WAV file and plays it on the speaker.
+    ./board4_hub samples/jfk.wav
 
-    ./board3_tts "Bonjour le monde"
+**Expected Output (Terminal 4):**
+
+    [HUB] Connecting to Board 1 (Ear)...
+    [HUB] Sent: samples/jfk.wav
+    [HUB] Received: "Ask not what your country..."
+    [HUB] Connecting to Board 2 (Brain)...
+    [HUB] Received: "Ne demandez pas ce que votre pays..."
+    [HUB] Connecting to Board 3 (Mouth)...
+    [HUB] Process Complete.
+
+*(You should hear the French audio play from the speaker connected to the board running Terminal 3)*
 
 ## 🧠 Technical Credits
 

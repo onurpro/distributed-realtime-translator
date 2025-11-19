@@ -41,15 +41,24 @@ void batch_add_token(llama_batch &batch, llama_token token, llama_pos pos, bool 
     batch.n_tokens++;
 }
 
-int Translator_process(const char* input, char* output, int max_len) {
-    if (!model || !ctx || !vocab) return -1;
+// ... (Keep headers and Translator_init) ...
 
-    // --- FIX: FEW-SHOT PROMPT ---
-    // We show the model an example (Hello -> Bonjour) so it knows 
-    // to output raw text without tags.
+int Translator_process(const char* input, char* output, int max_len) {
+    if (!model || !vocab) return -1;
+
+    // 1. Reset Brain (Critical for context clearing)
+    if (ctx) llama_free(ctx);
+    
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = 2048; 
+    ctx_params.n_threads = 4; 
+    ctx = llama_init_from_model(model, ctx_params);
+    if (!ctx) return -1;
+
+    // 2. Prompt
     std::string prompt = 
         "<|system|>\n"
-        "You are a professional translator. Translate text from English to French.\n"
+        "Translate the English text inside <source> tags into French.\n"
         "</s>\n"
         "<|user|>\n"
         "<source>Hello world</source>\n"
@@ -58,25 +67,36 @@ int Translator_process(const char* input, char* output, int max_len) {
         "Bonjour le monde\n"
         "</s>\n"
         "<|user|>\n"
+        "<source>Thank you very much for your help.</source>\n"
+        "</s>\n"
+        "<|assistant|>\n"
+        "Merci beaucoup pour votre aide.\n"
+        "</s>\n"
+        "<|user|>\n"
         "<source>" + std::string(input) + "</source>\n"
         "</s>\n"
         "<|assistant|>\n";
 
+    // --- TOKENIZE ---
     int n_prompt = -llama_tokenize(vocab, prompt.c_str(), prompt.length(), NULL, 0, true, true);
     std::vector<llama_token> tokens_list(n_prompt);
-    
     if (llama_tokenize(vocab, prompt.c_str(), prompt.length(), tokens_list.data(), tokens_list.size(), true, true) < 0) {
         return -1;
     }
 
+    // --- BATCHING ---
     llama_batch batch = llama_batch_init(2048, 0, 1);
     for (size_t i = 0; i < tokens_list.size(); i++) {
         batch_add_token(batch, tokens_list[i], i, false);
     }
     batch.logits[batch.n_tokens - 1] = true;
 
-    if (llama_decode(ctx, batch) != 0) return -1;
+    if (llama_decode(ctx, batch) != 0) {
+        llama_batch_free(batch);
+        return -1;
+    }
 
+    // --- GENERATION ---
     int n_cur = batch.n_tokens;
     std::string result = "";
     
@@ -96,23 +116,11 @@ int Translator_process(const char* input, char* output, int max_len) {
         if (n > 0) {
             std::string piece(buf, n);
             
-            // --- REVISED STOP LOGIC ---
+            if (piece.find("<|") != std::string::npos) break;
+            // Strict newline check: Stop if we have meaningful text and hit a newline
+            if (piece.find('\n') != std::string::npos && result.length() > 5) break;
             
-            // 1. Stop on Control Tokens only (e.g., <|user|>)
-            // We don't stop on '<' anymore, only '<|'
-            if (piece.find("<|") != std::string::npos) {
-                break;
-            }
-
-            // 2. Stop on Content Newline
-            if (piece.find('\n') != std::string::npos) {
-                if (result.empty()) {
-                    // Ignore leading newlines
-                } else {
-                    // Stop if we already have text
-                    break; 
-                }
-            } else {
+            if (piece.find('\n') == std::string::npos) {
                 result += piece;
                 printf("%s", piece.c_str()); 
                 fflush(stdout);

@@ -43,6 +43,15 @@
       "cacheVariables": {
         "BOARD": "3"
       }
+    },
+    {
+      "name": "board4-hub",
+      "displayName": "Board 4: The Hub",
+      "description": "Builds the Network Orchestrator",
+      "inherits": "base-arm64",
+      "cacheVariables": {
+        "BOARD": "4"
+      }
     }
   ]
 }

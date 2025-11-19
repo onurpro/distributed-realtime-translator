@@ -5,25 +5,14 @@
 #include <string>
 #include <fstream>
 #include <cstring>
-#include <cstdio> // For printf
+#include <cstdio>
 
 static struct whisper_context * ctx = nullptr;
 
-// --- NEW: Progress Callback Function ---
-// This function is called repeatedly by Whisper during transcription.
+// Optional: Keep the progress bar for server logs, or remove if it's too noisy
 void progress_callback(struct whisper_context * /*ctx*/, struct whisper_state * /*state*/, int progress, void * /*user_data*/) {
-    int bar_width = 50;
-    int pos = (progress * bar_width) / 100;
-
-    // \r moves cursor to start of line (to overwrite previous bar)
-    printf("\rProcessing: [");
-    for (int i = 0; i < bar_width; ++i) {
-        if (i < pos) printf("=");
-        else if (i == pos) printf(">");
-        else printf(" ");
-    }
-    printf("] %d%%", progress);
-    fflush(stdout); // Force print immediately
+    printf("\r[STT] Processing: %d%%", progress);
+    fflush(stdout);
 }
 
 extern "C" { 
@@ -39,70 +28,62 @@ void STT_init(const char* model_path) {
     printf("[APP] Whisper initialized.\n");
 }
 
-// Helper to read WAV file
 std::vector<float> read_wav(const char* filename) {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         fprintf(stderr, "[APP] Error: Could not open file %s\n", filename);
         return {};
     }
-
-    file.seekg(44); // Skip WAV header
-
+    file.seekg(44); 
     std::vector<int16_t> pcm16;
     int16_t sample;
     while (file.read(reinterpret_cast<char*>(&sample), sizeof(sample))) {
         pcm16.push_back(sample);
     }
-
     std::vector<float> pcmf32(pcm16.size());
     for (size_t i = 0; i < pcm16.size(); ++i) {
         pcmf32[i] = static_cast<float>(pcm16[i]) / 32768.0f;
     }
-
     return pcmf32;
 }
 
-int STT_transcribe_file(const char* wav_path) {
+int STT_transcribe_file(const char* wav_path, char* out_buffer, int buffer_size) {
     if (!ctx) return -1;
 
-    printf("[APP] Loading file: %s\n", wav_path);
+    // Clear the buffer safely
+    if (buffer_size > 0) out_buffer[0] = '\0';
+
     std::vector<float> pcmf32 = read_wav(wav_path);
-    
-    if (pcmf32.empty()) {
-        fprintf(stderr, "[APP] Failed to read audio data\n");
-        return -1;
-    }
+    if (pcmf32.empty()) return -1;
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    
-    // --- NEW: Register the progress callback ---
     wparams.progress_callback = progress_callback;
-    wparams.progress_callback_user_data = nullptr;
-
     wparams.n_threads = 4; 
-    wparams.print_progress = false; // Disable default messy text output
+    wparams.print_progress = false;
     wparams.print_special = false;
     wparams.print_realtime = false;
     wparams.language = "en"; 
 
-    // Run the inference
     if (whisper_full(ctx, wparams, pcmf32.data(), pcmf32.size()) != 0) {
         fprintf(stderr, "\n[APP] Failed to process audio\n");
         return -1;
     }
-    
-    // Print a newline to ensure the transcription starts on a fresh line
-    printf("\n"); 
+    printf("\n"); // Newline after progress bar
 
-    // Output the text
+    // --- NEW: Accumulate text into buffer ---
     const int n_segments = whisper_full_n_segments(ctx);
-    printf("\n--- TRANSCRIPTION ---\n");
     for (int i = 0; i < n_segments; ++i) {
         const char * text = whisper_full_get_segment_text(ctx, i);
-        printf("%s", text);
+        
+        // Append text to buffer, checking for overflow
+        // strncat protects against buffer overruns
+        int current_len = strlen(out_buffer);
+        int remaining = buffer_size - current_len - 1; // -1 for null terminator
+        
+        if (remaining > 0) {
+            strncat(out_buffer, text, remaining);
+        }
     }
-    printf("\n---------------------\n");
 
     return 0;
 }

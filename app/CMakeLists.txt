@@ -55,7 +55,7 @@ elseif(BOARD STREQUAL "3")
    add_executable(board3_tts ${MY_SOURCES})
     
    target_include_directories(board3_tts PRIVATE include)
-   target_link_libraries(board3_tts PRIVATE hal stdc++) # No special libs, just stdc++
+   target_link_libraries(board3_tts PRIVATE hal stdc++)
 
    # 1. Copy Executable
    add_custom_command(TARGET board3_tts POST_BUILD 
@@ -71,5 +71,20 @@ elseif(BOARD STREQUAL "3")
      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/ext/piper" "${NFS_PATH}/ext/piper"
      COMMENT "Deploying Piper Engine to NFS..."
    )
+elseif(BOARD STREQUAL "4")
+    # --- BOARD 4: THE HUB ---
+    file(GLOB MY_SOURCES "src/main_hub.c")
+    
+    add_executable(board4_hub ${MY_SOURCES})
+    
+    target_include_directories(board4_hub PRIVATE include)
+    target_link_libraries(board4_hub PRIVATE hal)
+
+    # Copy Executable to NFS
+    add_custom_command(TARGET board4_hub POST_BUILD 
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${NFS_PATH}"
+        COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:board4_hub>" "${NFS_PATH}/board4_hub"
+        COMMENT "Deploying Hub Executable to NFS..."
+    )
 endif()
 
