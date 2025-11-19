@@ -86,5 +86,12 @@ elseif(BOARD STREQUAL "4")
         COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:board4_hub>" "${NFS_PATH}/board4_hub"
         COMMENT "Deploying Hub Executable to NFS..."
     )
+
+    # Copy Samples Folder
+    add_custom_command(TARGET board4_hub POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${NFS_PATH}/samples"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/samples" "${NFS_PATH}/samples"
+        COMMENT "Deploying Sample Audio Files..."
+    )
 endif()
 
