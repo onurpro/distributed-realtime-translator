@@ -1,0 +1,48 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20
+  },
+  "configurePresets": [
+    {
+      "name": "base-arm64",
+      "hidden": true,
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "toolchainFile": "${sourceDir}/toolchain-aarch64.cmake",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": "OFF",
+        "GGML_NATIVE": "OFF",
+        "GGML_CPU_ARM_ARCH": "armv8-a"
+      }
+    },
+    {
+      "name": "board1-stt",
+      "displayName": "Board 1: Speech-to-Text",
+      "description": "Builds Whisper node",
+      "inherits": "base-arm64",
+      "cacheVariables": {
+        "BOARD": "1"
+      }
+    },
+    {
+      "name": "board2-trans",
+      "displayName": "Board 2: Translator",
+      "description": "Builds Llama/Translation node",
+      "inherits": "base-arm64",
+      "cacheVariables": {
+        "BOARD": "2"
+      }
+    },
+    {
+      "name": "board3-tts",
+      "displayName": "Board 3: TTS",
+      "description": "Builds Piper/TTS node",
+      "inherits": "base-arm64",
+      "cacheVariables": {
+        "BOARD": "3"
+      }
+    }
+  ]
+}

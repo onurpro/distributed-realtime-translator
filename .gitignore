@@ -1,0 +1,24 @@
+# Ignore Build Artifacts
+build/
+bin/
+lib/
+
+# Ignore Large Model Files (Download these manually)
+models/
+*.bin
+*.gguf
+*.onnx
+*.onnx.json
+
+# Ignore Audio Files
+*.wav
+
+# Ignore the manual Piper download (it contains binaries)
+ext/piper/
+
+# Ignore Deployment folders
+*_deployment/
+
+# Ignore System/IDE files
+.vscode/
+.DS_Store
