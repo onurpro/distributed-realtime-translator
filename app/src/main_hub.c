@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "hal/network.h"
+#include "tui_manager.h"
 
 #define IP_STT   "127.0.0.1"
 #define PORT_STT 8001
@@ -36,21 +37,22 @@ int send_request(const char* module, const char* ip, int port, const char* input
 }
 
 void process_sentence(char* sentence) {
-    // Skip empty/short sentences (e.g. just a newline)
     if (strlen(sentence) < 2) return;
 
-    char french_text[BUFFER_SIZE];
+    char french_text[4096];
     char tts_ack[128];
 
-    printf("\n[HUB] --- Processing Chunk ---\n");
-    printf("[HUB] English: '%s'\n", sentence);
-
-    // 1. Translate this specific sentence
+    TUI_update_ear("Chunk Complete", sentence);
+    
+    // Translate
+    TUI_update_brain("Processing...", "");
     if (send_request("Brain", IP_TRANS, PORT_TRANS, sentence, french_text) > 0) {
-        printf("[HUB] French:  '%s'\n", french_text);
+        TUI_update_brain("Done", french_text);
         
-        // 2. Speak this specific sentence
+        // Speak
+        TUI_update_mouth("Speaking...", french_text);
         send_request("Mouth", IP_TTS, PORT_TTS, french_text, tts_ack);
+        TUI_update_mouth("Idle", "");
     }
 }
 
@@ -60,47 +62,49 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    char full_transcript[BUFFER_SIZE];
+    // 1. Start TUI
+    TUI_init();
 
-    printf("[HUB] Step 1: Listening to Audio (Board 1)...\n");
-    
-    // 1. Get the FULL transcript first (Board 1 is fast enough to do this)
+    char full_transcript[4096];
+
+    // Step 1: Get Full Transcript
+    TUI_update_ear("Listening...", argv[1]);
     if (send_request("Ear", IP_STT, PORT_STT, argv[1], full_transcript) <= 0) {
-        printf("[HUB] Failed to get transcript.\n");
+        TUI_close();
+        printf("Error: Board 1 failed.\n");
         return 1;
     }
-    printf("[HUB] Full Transcript Received (%lu bytes).\n", strlen(full_transcript));
+    
+    int total_len = strlen(full_transcript);
+    TUI_update_ear("Received", "Processing text...");
 
-    // 2. "Pseudo-Stream" logic: Split by punctuation
-    // We iterate through the text and cut it every time we see . ? ! or \n
+    // Step 2: Chunk & Process
     char* cursor = full_transcript;
     char* start = cursor;
     
     while (*cursor) {
-        // If we hit punctuation, treat it as end of sentence
         if (*cursor == '.' || *cursor == '?' || *cursor == '!' || *cursor == '\n') {
-            char original_char = *cursor;
-            
-            // Terminate string here temporarily to isolate the sentence
+            char original = *cursor;
             *cursor = '\0'; 
             
-            // Process the sentence we just isolated
             process_sentence(start);
+
+            // Update Progress
+            float p = (float)(cursor - full_transcript) / total_len;
+            TUI_update_progress(p);
             
-            // Move start to the character AFTER the punctuation
             start = cursor + 1;
-            
-            // Skip any whitespace at the start of the NEXT sentence
             while (*start == ' ' || *start == '\n') start++;
         }
         cursor++;
     }
 
-    // Process any remaining text (if the last sentence didn't end with punctuation)
     if (strlen(start) > 1) {
         process_sentence(start);
+        TUI_update_progress(1.0f);
     }
 
-    printf("\n[HUB] Processing Complete.\n");
+    sleep(2); // Wait so you can see the final state
+    TUI_close();
     return 0;
 }

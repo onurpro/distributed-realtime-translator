@@ -49,7 +49,7 @@ The system is modularized into four independent nodes. All nodes now operate as 
 Install these dependencies on the board:
  
     sudo apt update
-    sudo apt install cmake build-essential alsa-utils libasound2-dev git
+    sudo apt install cmake build-essential alsa-utils libasound2-dev git libncurses-dev:arm64
 
 
 ## 🚀 Installation & Setup
@@ -124,7 +124,7 @@ To simulate the distributed system on a single board (Localhost Cluster), you mu
     ./board3_tts
     # Output: Server listening on port 8003...
 
-**Terminal 4: Run The Hub** This triggers the pipeline. Pass a WAV file as an argument.
+**Terminal 4: Run The Hub** This triggers the pipeline and launches the visual dashboard. Pass a WAV file as an argument.
 
     ./board4_hub samples/jfk.wav
 

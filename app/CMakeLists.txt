@@ -73,12 +73,12 @@ elseif(BOARD STREQUAL "3")
    )
 elseif(BOARD STREQUAL "4")
     # --- BOARD 4: THE HUB ---
-    file(GLOB MY_SOURCES "src/main_hub.c")
+    file(GLOB MY_SOURCES "src/main_hub.c" "src/tui_manager.c")
     
     add_executable(board4_hub ${MY_SOURCES})
     
     target_include_directories(board4_hub PRIVATE include)
-    target_link_libraries(board4_hub PRIVATE hal)
+    target_link_libraries(board4_hub PRIVATE hal ncurses tinfo)
 
     # Copy Executable to NFS
     add_custom_command(TARGET board4_hub POST_BUILD 
