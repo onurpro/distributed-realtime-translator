@@ -10,10 +10,10 @@
 static struct whisper_context * ctx = nullptr;
 
 // Optional: Keep the progress bar for server logs, or remove if it's too noisy
-void progress_callback(struct whisper_context * /*ctx*/, struct whisper_state * /*state*/, int progress, void * /*user_data*/) {
-    printf("\r[STT] Processing: %d%%", progress);
-    fflush(stdout);
-}
+// void progress_callback(struct whisper_context * /*ctx*/, struct whisper_state * /*state*/, int progress, void * /*user_data*/) {
+//     printf("\r[STT] Processing: %d%%", progress);
+//     fflush(stdout);
+// }
 
 extern "C" { 
 
@@ -57,7 +57,7 @@ int STT_transcribe_file(const char* wav_path, char* out_buffer, int buffer_size)
     if (pcmf32.empty()) return -1;
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    wparams.progress_callback = progress_callback;
+    // wparams.progress_callback = progress_callback;
     wparams.n_threads = 4; 
     wparams.print_progress = false;
     wparams.print_special = false;

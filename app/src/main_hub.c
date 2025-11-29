@@ -4,13 +4,13 @@
 #include <unistd.h>
 #include "hal/network.h"
 
-#define IP_STT   "127.0.0.1"
+#define IP_STT   "192.168.1.102"
 #define PORT_STT 8001
 
-#define IP_TRANS   "127.0.0.1"
+#define IP_TRANS   "192.168.1.103"
 #define PORT_TRANS 8002
 
-#define IP_TTS   "127.0.0.1"
+#define IP_TTS   "192.168.1.101"
 #define PORT_TTS 8003
 
 #define BUFFER_SIZE 4096
