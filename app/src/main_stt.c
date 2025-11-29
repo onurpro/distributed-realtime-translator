@@ -9,6 +9,19 @@
 #define MODEL_PATH "models/ggml-base.en.bin"
 #define MAX_TRANSCRIPTION_SIZE 2048
 
+// Global to allow callback access (Single-threaded server assumption)
+static int current_client_fd = -1;
+
+void send_segment_callback(const char* segment) {
+    if (current_client_fd < 0) return;
+    
+    char msg[2048];
+    // Simple protocol: "SEGMENT: <text>\n"
+    snprintf(msg, sizeof(msg), "SEGMENT: %s\n", segment);
+    Network_send(current_client_fd, msg);
+    printf("[STT] Sent segment: '%s'\n", segment);
+}
+
 int main() {
     printf("--- Board #1: STT Server (Port %d) ---\n", PORT);
     
@@ -24,6 +37,8 @@ int main() {
         // 3. Wait for Board 4 to connect
         int client_fd = Network_accept_client(server_fd);
         if (client_fd < 0) continue;
+        
+        current_client_fd = client_fd;
 
         char buffer[1024]; // To hold the filename received
 
@@ -37,21 +52,20 @@ int main() {
 
             printf("[STT] Processing file: '%s'...\n", buffer);
             
-            // 5. Run Whisper (Outputs to result_buffer)
-            // Note: We assume STT_transcribe_file writes to buffer as discussed.
-            // If your current version prints to stdout, we'll adjust stt_manager next.
-            if (STT_transcribe_file(buffer, result_buffer, MAX_TRANSCRIPTION_SIZE) == 0) {
-                
-                // 6. Send Text Back to Board 4
-                Network_send(client_fd, result_buffer);
-                printf("[STT] Sent response (%lu bytes).\n", strlen(result_buffer));
+            // 5. Run Whisper with Streaming Callback
+            if (STT_transcribe_file(buffer, result_buffer, MAX_TRANSCRIPTION_SIZE, send_segment_callback) == 0) {
+                // 6. Send DONE signal
+                Network_send(client_fd, "DONE\n");
+                printf("[STT] Finished. Sent DONE.\n");
             } else {
-                Network_send(client_fd, "ERROR: Could not transcribe.");
+                Network_send(client_fd, "ERROR: Could not transcribe.\n");
             }
         }
         
         close(client_fd);
+        current_client_fd = -1;
     }
+
 
     free(result_buffer);
     STT_free();

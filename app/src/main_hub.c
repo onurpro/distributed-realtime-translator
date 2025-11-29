@@ -64,42 +64,57 @@ int main(int argc, char* argv[]) {
 
     printf("[HUB] Step 1: Listening to Audio (Board 1)...\n");
     
-    // 1. Get the FULL transcript first (Board 1 is fast enough to do this)
-    if (send_request("Ear", IP_STT, PORT_STT, argv[1], full_transcript) <= 0) {
-        printf("[HUB] Failed to get transcript.\n");
+    // 1. Connect to STT
+    int stt_sock = Network_connect(IP_STT, PORT_STT);
+    if (stt_sock < 0) {
+        printf("[HUB] Failed to connect to STT.\n");
         return 1;
     }
-    printf("[HUB] Full Transcript Received (%lu bytes).\n", strlen(full_transcript));
 
-    // 2. "Pseudo-Stream" logic: Split by punctuation
-    // We iterate through the text and cut it every time we see . ? ! or \n
-    char* cursor = full_transcript;
-    char* start = cursor;
-    
-    while (*cursor) {
-        // If we hit punctuation, treat it as end of sentence
-        if (*cursor == '.' || *cursor == '?' || *cursor == '!' || *cursor == '\n') {
-            char original_char = *cursor;
+    // 2. Send Filename
+    Network_send(stt_sock, argv[1]);
+
+    // 3. Stream Results
+    char net_buffer[BUFFER_SIZE];
+    char line_buffer[BUFFER_SIZE * 2]; // Accumulate data here
+    int line_buf_pos = 0;
+
+    while (1) {
+        int len = Network_recv(stt_sock, net_buffer, BUFFER_SIZE);
+        if (len <= 0) break;
+
+        // Append received data to line_buffer
+        for (int i = 0; i < len; i++) {
+            char c = net_buffer[i];
             
-            // Terminate string here temporarily to isolate the sentence
-            *cursor = '\0'; 
-            
-            // Process the sentence we just isolated
-            process_sentence(start);
-            
-            // Move start to the character AFTER the punctuation
-            start = cursor + 1;
-            
-            // Skip any whitespace at the start of the NEXT sentence
-            while (*start == ' ' || *start == '\n') start++;
+            if (c == '\n') {
+                // Found a complete line
+                line_buffer[line_buf_pos] = '\0';
+                
+                // Process the line
+                if (strncmp(line_buffer, "SEGMENT: ", 9) == 0) {
+                    char* text = line_buffer + 9;
+                    process_sentence(text);
+                } else if (strcmp(line_buffer, "DONE") == 0) {
+                    printf("[HUB] STT Finished.\n");
+                    goto stt_done; // Break out of outer loop
+                } else {
+                    printf("[HUB] Unknown message from STT: %s\n", line_buffer);
+                }
+                
+                // Reset buffer for next line
+                line_buf_pos = 0;
+            } else {
+                // Append char if space allows
+                if (line_buf_pos < (sizeof(line_buffer) - 1)) {
+                    line_buffer[line_buf_pos++] = c;
+                }
+            }
         }
-        cursor++;
     }
-
-    // Process any remaining text (if the last sentence didn't end with punctuation)
-    if (strlen(start) > 1) {
-        process_sentence(start);
-    }
+    
+    stt_done:
+    Network_close(stt_sock);
 
     printf("\n[HUB] Processing Complete.\n");
     return 0;

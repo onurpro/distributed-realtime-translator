@@ -47,7 +47,23 @@ std::vector<float> read_wav(const char* filename) {
     return pcmf32;
 }
 
-int STT_transcribe_file(const char* wav_path, char* out_buffer, int buffer_size) {
+// Internal callback to bridge Whisper C++ callback to our C callback
+void internal_segment_callback(struct whisper_context * ctx, struct whisper_state * /*state*/, int n_new, void * user_data) {
+    stt_callback_t user_cb = (stt_callback_t)user_data;
+    if (!user_cb) return;
+
+    int n_segments = whisper_full_n_segments(ctx);
+    int start_segment = n_segments - n_new;
+
+    for (int i = start_segment; i < n_segments; ++i) {
+        const char * text = whisper_full_get_segment_text(ctx, i);
+        if (text) {
+            user_cb(text);
+        }
+    }
+}
+
+int STT_transcribe_file(const char* wav_path, char* out_buffer, int buffer_size, stt_callback_t callback) {
     if (!ctx) return -1;
 
     // Clear the buffer safely
@@ -57,28 +73,31 @@ int STT_transcribe_file(const char* wav_path, char* out_buffer, int buffer_size)
     if (pcmf32.empty()) return -1;
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    // wparams.progress_callback = progress_callback;
     wparams.n_threads = 4; 
     wparams.print_progress = false;
     wparams.print_special = false;
     wparams.print_realtime = false;
     wparams.language = "en"; 
+    
+    // Set up the callback
+    if (callback) {
+        wparams.new_segment_callback = internal_segment_callback;
+        wparams.new_segment_callback_user_data = (void*)callback;
+    }
 
     if (whisper_full(ctx, wparams, pcmf32.data(), pcmf32.size()) != 0) {
         fprintf(stderr, "\n[APP] Failed to process audio\n");
         return -1;
     }
-    printf("\n"); // Newline after progress bar
+    printf("\n"); 
 
-    // --- NEW: Accumulate text into buffer ---
+    // Accumulate text into buffer (Final full text)
     const int n_segments = whisper_full_n_segments(ctx);
     for (int i = 0; i < n_segments; ++i) {
         const char * text = whisper_full_get_segment_text(ctx, i);
         
-        // Append text to buffer, checking for overflow
-        // strncat protects against buffer overruns
         int current_len = strlen(out_buffer);
-        int remaining = buffer_size - current_len - 1; // -1 for null terminator
+        int remaining = buffer_size - current_len - 1; 
         
         if (remaining > 0) {
             strncat(out_buffer, text, remaining);
