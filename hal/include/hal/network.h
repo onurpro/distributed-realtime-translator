@@ -33,6 +33,9 @@ int Network_recv(int sockfd, char* buffer, int max_len);
 // Close the connection.
 void Network_close(int sockfd);
 
+// Enable or disable stdout logging (1 = enable, 0 = disable)
+void Network_enable_logging(int enable);
+
 #ifdef __cplusplus
 }
 #endif

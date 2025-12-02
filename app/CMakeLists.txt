@@ -78,7 +78,7 @@ elseif(BOARD STREQUAL "4")
     add_executable(board4_hub ${MY_SOURCES})
     
     target_include_directories(board4_hub PRIVATE include)
-    target_link_libraries(board4_hub PRIVATE hal ncurses tinfo)
+    target_link_libraries(board4_hub PRIVATE hal ncurses tinfo pthread)
 
     # Copy Executable to NFS
     add_custom_command(TARGET board4_hub POST_BUILD 

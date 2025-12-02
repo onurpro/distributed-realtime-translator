@@ -2,6 +2,7 @@
 #include <ncurses.h>
 #include <string.h>
 #include <stdarg.h>
+#include <pthread.h>
 
 #define HEIGHT_HEADER 3
 #define HEIGHT_PANEL 6
@@ -15,6 +16,8 @@ static int col_split;      // X coordinate where the screen splits
 static char log_history[MAX_LOG_LINES][128];
 static int log_head = 0;
 static int log_count = 0;
+
+static pthread_mutex_t tui_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Helper to draw boxes
 void draw_box(int y, int x, int h, int w, const char* title) {
@@ -65,6 +68,7 @@ void render_logs() {
 }
 
 void TUI_log(const char* fmt, ...) {
+    pthread_mutex_lock(&tui_mutex);
     char buffer[128];
     va_list args;
     va_start(args, fmt);
@@ -78,9 +82,11 @@ void TUI_log(const char* fmt, ...) {
 
     render_logs();
     refresh();
+    pthread_mutex_unlock(&tui_mutex);
 }
 
 void TUI_init(void) {
+    pthread_mutex_lock(&tui_mutex);
     initscr();
     cbreak();
     noecho();
@@ -111,9 +117,11 @@ void TUI_init(void) {
     draw_box(3, col_split, HEIGHT_PANEL * 3, screen_w - col_split, " NETWORK CONSOLE ");
 
     refresh();
+    pthread_mutex_unlock(&tui_mutex);
 }
 
 void TUI_update_ear(const char* status, const char* text) {
+    pthread_mutex_lock(&tui_mutex);
     int y = 3;
     int w = col_split - 2;
     
@@ -126,9 +134,11 @@ void TUI_update_ear(const char* status, const char* text) {
     attroff(COLOR_PAIR(3));
     mvprintw(y+3, 2, "Input: %.50s...", text);
     refresh();
+    pthread_mutex_unlock(&tui_mutex);
 }
 
 void TUI_update_brain(const char* status, const char* text) {
+    pthread_mutex_lock(&tui_mutex);
     int y = 3 + HEIGHT_PANEL;
     int w = col_split - 2;
 
@@ -143,9 +153,11 @@ void TUI_update_brain(const char* status, const char* text) {
     mvprintw(y+3, 2, "French: %.50s...", text);
     attroff(COLOR_PAIR(2));
     refresh();
+    pthread_mutex_unlock(&tui_mutex);
 }
 
 void TUI_update_mouth(const char* status, const char* text) {
+    pthread_mutex_lock(&tui_mutex);
     int y = 3 + HEIGHT_PANEL * 2;
     int w = col_split - 2;
     
@@ -158,9 +170,11 @@ void TUI_update_mouth(const char* status, const char* text) {
     
     mvprintw(y+3, 2, "Speaking: %.50s...", text);
     refresh();
+    pthread_mutex_unlock(&tui_mutex);
 }
 
 void TUI_update_progress(float percent) {
+    pthread_mutex_lock(&tui_mutex);
     int bar_width = screen_w - 4;
     int filled = (int)(bar_width * percent);
     int y = screen_h - 2;
@@ -174,8 +188,11 @@ void TUI_update_progress(float percent) {
     }
     addch(']');
     refresh();
+    pthread_mutex_unlock(&tui_mutex);
 }
 
 void TUI_close(void) {
+    pthread_mutex_lock(&tui_mutex);
     endwin();
+    pthread_mutex_unlock(&tui_mutex);
 }

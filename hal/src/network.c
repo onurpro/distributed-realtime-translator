@@ -7,6 +7,12 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+static int logging_enabled = 1;
+
+void Network_enable_logging(int enable) {
+    logging_enabled = enable;
+}
+
 // --- CLIENT IMPLEMENTATION ---
 
 int Network_connect(const char* ip_address, int port) {
@@ -14,7 +20,7 @@ int Network_connect(const char* ip_address, int port) {
     struct sockaddr_in serv_addr;
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("[NET] Socket creation error");
+        if (logging_enabled) perror("[NET] Socket creation error");
         return -1;
     }
 
@@ -23,13 +29,13 @@ int Network_connect(const char* ip_address, int port) {
 
     // Convert IPv4 and IPv6 addresses from text to binary form
     if (inet_pton(AF_INET, ip_address, &serv_addr.sin_addr) <= 0) {
-        perror("[NET] Invalid address/ Address not supported");
+        if (logging_enabled) perror("[NET] Invalid address/ Address not supported");
         return -1;
     }
 
-    printf("[NET] Connecting to %s:%d...\n", ip_address, port);
+    if (logging_enabled) printf("[NET] Connecting to %s:%d...\n", ip_address, port);
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("[NET] Connection Failed");
+        if (logging_enabled) perror("[NET] Connection Failed");
         close(sockfd);
         return -1;
     }
@@ -46,13 +52,13 @@ int Network_start_server(int port) {
 
     // 1. Create Socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("[NET] Socket failed");
+        if (logging_enabled) perror("[NET] Socket failed");
         return -1;
     }
 
     // 2. Set Socket Options (Reuse Address/Port to prevent 'Address already in use')
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-        perror("[NET] setsockopt failed");
+        if (logging_enabled) perror("[NET] setsockopt failed");
         close(server_fd);
         return -1;
     }
@@ -63,19 +69,20 @@ int Network_start_server(int port) {
 
     // 3. Bind to the port
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("[NET] Bind failed");
+        if (logging_enabled) perror("[NET] Bind failed");
         close(server_fd);
         return -1;
     }
 
     // 4. Start Listening (Queue up to 3 connections)
     if (listen(server_fd, 3) < 0) {
-        perror("[NET] Listen failed");
+        if (logging_enabled) perror("[NET] Listen failed");
         close(server_fd);
         return -1;
     }
     
-    printf("[NET] Server listening on port %d...\n", port);
+    
+    if (logging_enabled) printf("[NET] Server listening on port %d...\n", port);
     return server_fd;
 }
 
@@ -83,13 +90,13 @@ int Network_accept_client(int server_fd) {
     struct sockaddr_in address;
     int addrlen = sizeof(address);
     
-    printf("[NET] Waiting for connection...\n");
+    if (logging_enabled) printf("[NET] Waiting for connection...\n");
     int client_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
     
     if (client_fd < 0) {
-        perror("[NET] Accept failed");
+        if (logging_enabled) perror("[NET] Accept failed");
     } else {
-        printf("[NET] Client connected!\n");
+        if (logging_enabled) printf("[NET] Client connected!\n");
     }
     return client_fd;
 }
@@ -116,6 +123,6 @@ int Network_recv(int sockfd, char* buffer, int max_len) {
 void Network_close(int sockfd) {
     if (sockfd >= 0) {
         close(sockfd);
-        printf("[NET] Connection closed.\n");
+        if (logging_enabled) printf("[NET] Connection closed.\n");
     }
 }
