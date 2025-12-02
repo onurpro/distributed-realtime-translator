@@ -14,6 +14,12 @@ void TUI_update_mouth(const char* status, const char* text);
 void TUI_log(const char* fmt, ...);
 
 // Update progress (Bottom)
+// Update progress (Bottom)
 void TUI_update_progress(float percent);
+
+// Interactive & Visuals
+void TUI_set_mode(int mode); // 0 = Standard, 1 = Presentation
+void TUI_process_input(int ch);
+void TUI_animate(void);      // Call periodically for animations
 
 #endif

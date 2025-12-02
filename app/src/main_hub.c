@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include "hal/network.h"
 #include "tui_manager.h"
+#include <ncurses.h>
 
 #define IP_STT   "192.168.1.101"
 #define PORT_STT 8001
@@ -160,6 +161,27 @@ void* tts_thread(void* arg) {
     return NULL;
 }
 
+// --- Input & Animation Threads ---
+
+void* input_thread(void* arg) {
+    while (1) {
+        int ch = getch();
+        if (ch != ERR) {
+            TUI_process_input(ch);
+        }
+        usleep(10000); // 10ms
+    }
+    return NULL;
+}
+
+void* animation_thread(void* arg) {
+    while (1) {
+        TUI_animate();
+        usleep(100000); // 100ms
+    }
+    return NULL;
+}
+
 // --- Main ---
 
 int main(int argc, char* argv[]) {
@@ -177,9 +199,12 @@ int main(int argc, char* argv[]) {
     queue_init(&tts_queue);
 
     // Start Threads
-    pthread_t trans_tid, tts_tid;
+    // Start Threads
+    pthread_t trans_tid, tts_tid, input_tid, anim_tid;
     pthread_create(&trans_tid, NULL, translator_thread, NULL);
     pthread_create(&tts_tid, NULL, tts_thread, NULL);
+    pthread_create(&input_tid, NULL, input_thread, NULL);
+    pthread_create(&anim_tid, NULL, animation_thread, NULL);
 
     // Connect to STT
     TUI_update_ear("Listening...", argv[1]);
