@@ -5,12 +5,15 @@
 #include "hal/network.h"
 #include "tui_manager.h"
 
-#define IP_STT   "127.0.0.1"
+#define IP_STT   "192.168.1.102"
 #define PORT_STT 8001
-#define IP_TRANS "127.0.0.1"
+
+#define IP_TRANS   "192.168.1.103"
 #define PORT_TRANS 8002
-#define IP_TTS   "127.0.0.1"
+
+#define IP_TTS   "192.168.1.101"
 #define PORT_TTS 8003
+
 #define BUFFER_SIZE 4096
 
 // Helper: Network request with TUI logging
@@ -69,47 +72,63 @@ int main(int argc, char* argv[]) {
     TUI_init();
     TUI_log("Hub Initialized.");
 
-    char full_transcript[BUFFER_SIZE];
+    // Step 1: Connect to STT (Streaming logic)
+    TUI_update_ear("Listening (Streaming)...", argv[1]);
+    TUI_log("Connecting to STT Board...");
 
-    // Step 1: Full Transcription
-    TUI_update_ear("Listening (Whisper)...", argv[1]);
-    TUI_log("Starting Batch Transcription on Board 1...");
-    
-    if (send_request("Ear", IP_STT, PORT_STT, argv[1], full_transcript) <= 0) {
+    int stt_sock = Network_connect(IP_STT, PORT_STT);
+    if (stt_sock < 0) {
+        TUI_log("ERROR: Failed to connect to STT.");
         TUI_close();
-        printf("Error: Board 1 failed.\n");
         return 1;
     }
-    
-    int total_len = strlen(full_transcript);
-    TUI_update_ear("Received", "Processing text...");
-    TUI_log("Transcript received (%d chars)", total_len);
 
-    // Step 2: Chunking Loop
-    char* cursor = full_transcript;
-    char* start = cursor;
-    
-    while (*cursor) {
-        if (*cursor == '.' || *cursor == '?' || *cursor == '!' || *cursor == '\n') {
-            char original = *cursor;
-            *cursor = '\0'; 
-            
-            process_sentence(start);
+    // 2. Send Filename
+    Network_send(stt_sock, argv[1]);
 
-            float p = (float)(cursor - full_transcript) / total_len;
-            TUI_update_progress(p);
+    // 3. Stream Results
+    char net_buffer[BUFFER_SIZE];
+    char line_buffer[BUFFER_SIZE * 2]; // Accumulate data here
+    int line_buf_pos = 0;
+
+    while (1) {
+        int len = Network_recv(stt_sock, net_buffer, BUFFER_SIZE);
+        if (len <= 0) break;
+
+        // Append received data to line_buffer
+        for (int i = 0; i < len; i++) {
+            char c = net_buffer[i];
             
-            start = cursor + 1;
-            while (*start == ' ' || *start == '\n') start++;
+            if (c == '\n') {
+                // Found a complete line
+                line_buffer[line_buf_pos] = '\0';
+                
+                // Process the line
+                if (strncmp(line_buffer, "SEGMENT: ", 9) == 0) {
+                    char* text = line_buffer + 9;
+                    TUI_log("Received Segment: %s", text);
+                    process_sentence(text);
+                } else if (strcmp(line_buffer, "DONE") == 0) {
+                    TUI_log("STT Finished.");
+                    goto stt_done; // Break out of outer loop
+                } else {
+                    TUI_log("Unknown message from STT: %s", line_buffer);
+                }
+                
+                // Reset buffer for next line
+                line_buf_pos = 0;
+            } else {
+                // Append char if space allows
+                if (line_buf_pos < (sizeof(line_buffer) - 1)) {
+                    line_buffer[line_buf_pos++] = c;
+                }
+            }
         }
-        cursor++;
-    }
-
-    if (strlen(start) > 1) {
-        process_sentence(start);
-        TUI_update_progress(1.0f);
     }
     
+    stt_done:
+    Network_close(stt_sock);
+
     TUI_log("All jobs complete.");
     sleep(3); // Hold display
     TUI_close();

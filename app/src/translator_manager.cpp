@@ -58,22 +58,22 @@ int Translator_process(const char* input, char* output, int max_len) {
     // 2. Prompt
     std::string prompt = 
         "<|system|>\n"
-        "Translate the English text inside <source> tags into French.\n"
+        "You are a professional translator. Translate the following English text to French. Do not explain. Do not repeat the English.\n"
         "</s>\n"
         "<|user|>\n"
-        "<source>Hello world</source>\n"
+        "Hello world\n"
         "</s>\n"
         "<|assistant|>\n"
         "Bonjour le monde\n"
         "</s>\n"
         "<|user|>\n"
-        "<source>Thank you very much for your help.</source>\n"
+        "Thank you very much for your help.\n"
         "</s>\n"
         "<|assistant|>\n"
         "Merci beaucoup pour votre aide.\n"
         "</s>\n"
         "<|user|>\n"
-        "<source>" + std::string(input) + "</source>\n"
+        "" + std::string(input) + "\n"
         "</s>\n"
         "<|assistant|>\n";
 
