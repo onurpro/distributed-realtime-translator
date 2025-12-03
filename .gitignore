@@ -22,3 +22,5 @@ ext/piper/
 # Ignore System/IDE files
 .vscode/
 .DS_Store
+
+.cache
