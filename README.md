@@ -1,8 +1,21 @@
+> **Status:** Functional prototype. Four-person ENSC 351 course project at SFU, 
+> Fall 2025. I built the software stack (network HAL, audio HAL, CMake monorepo, 
+> Hub orchestrator, TUI dashboard, and the three AI-engine C++ wrappers); 
+> teammates contributed the 3D-printed enclosures and final hardware assembly.
+
 # ENSC 351: Distributed Real-Time Translator (Network Hub)
 
-This project implements a distributed Speech-to-Speech translation system running on embedded BeagleBoard hardware (Beagley-AI). The system captures English audio, transcribes it to text, translates it to French, and synthesizes spoken French audio.
+A distributed, fully offline speech-to-speech translator. English audio in through a USB mic, French audio out through a speaker, no cloud calls. Four BeagleY-AI boards (ARM64 Cortex-A53) on a private gigabit subnet, each running a specialized C/C++ binary, coordinated by a custom TCP hub.
 
 The architecture follows a **Hub-and-Spoke** model where a central orchestrator (Board 4) manages data flow between specialized AI inference nodes via **TCP Sockets**.
+
+## Highlights
+
+- **Custom TCP hub-and-spoke protocol** in C, with persistent sockets between a single client orchestrator and three inference servers (`hal/src/network.c`).
+- **Cross-compilation from x86 to ARM64** via a single CMake monorepo with `BOARD={1,2,3,4}` logic gates that isolate each binary's dependencies and resolve a `ggml` target-name collision between `whisper.cpp` and `llama.cpp`.
+- **Stateless LLM context manager** that tears down and rebuilds the `llama.cpp` KV cache per sentence, fixing a recurring `inconsistent sequence positions` crash and eliminating cross-sentence hallucinations.
+- **ncurses TUI dashboard** on the Hub for live multi-node debugging from a single terminal instead of four SSH sessions.
+- **Pipelined async pipeline** (bounded queues between STT/translation/TTS) so Board 2 can translate sentence N+1 while Board 3 is still speaking N.
 
 ## 🏗 Architecture & Milestones
 
