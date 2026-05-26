@@ -71,8 +71,7 @@ Because the AI models and TTS binaries are too large for Git, you must download 
 
 1. Clone the Repository:
     ```
-    git clone https://github.sfu.ca/oya4/ENSC351-Distributed-Translator.git
-    cd ENSC351-Distributed-Translator
+    git clone https://github.com/onurpro/distributed-realtime-translator.git
     git submodule update --init --recursive
     ```
 
